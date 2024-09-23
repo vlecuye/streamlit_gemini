@@ -1,0 +1,19 @@
+<svg class="h-full w-full overflow-hidden" width="56" height="56" viewBox="0 0 56 56" fill="none"
+    xmlns="http://www.w3.org/2000/svg">
+    <g class="anim-group">
+        <path d="M28 28V42L42 28H28Z" fill="#F42D20"></path>
+        <path d="M42 14V28L56 14L42 14Z" fill="#46A048"></path>
+        <path d="M42 14H28V28H42V14Z" fill="#594A99"></path>
+        <path d="M42 42V28L28 42H42Z" fill="#F05C8E"></path>
+        <path d="M28 0V14L42 0H28Z" fill="#F05C8E"></path>
+        <path d="M42 14V0L28 14H42Z" fill="#F42D20"></path>
+        <path d="M28 28V14L14 28H28Z" fill="#46A048"></path>
+        <path d="M14 14V28L28 14L14 14Z" fill="#51D4E1"></path>
+        <path d="M56 28V14L42 28H56Z" fill="#51D4E1"></path>
+        <path d="M28 14V0L14 14L28 14Z" fill="#F599B9"></path>
+        <path d="M0 28V42L14 28V14L0 28Z" fill="#95E6EF"></path>
+        <path d="M42 28V42L56 28H42Z" fill="#95E6EF"></path>
+        <path d="M14 28L0 42V56H14L28 42V28H14Z" fill="#FFC30F"></path>
+        <path d="M28 42L14 56H28L41.9972 42H28Z" fill="#F599B9"></path>
+    </g>
+</svg>
