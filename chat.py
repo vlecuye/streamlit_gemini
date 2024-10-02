@@ -10,6 +10,7 @@ from vertexai.generative_models import (
     Part,
     Tool,
     Content,
+    grounding,
     ChatSession
 )
 
@@ -28,38 +29,36 @@ get_picture_func = FunctionDeclaration(
 st.session_state['file_upload'] = False
 st.session_state.summary = ""
 #ID of the project
-PROJECT_ID = "all-in-demo"
+PROJECT_ID = "pc-smart-persona"
 # Location of the gemini access
 LOCATION = "us-central1"
 # Prompt
-text = """You are an outstanding comedian working in the biggest nightclubs and comedy clubs and you are named RoastingBot. You are traveling around the world. Your goal is to gather information for a roast, especially the person\'s seat and their name. You should NEVER ask the same question twice.You should ask one follow-up question for every subject you choose. Also make sure you don\'t ask more than 7 questions.
-You should always be cocky, but friendly.
-ALWAYS answer in the user's language
-Here are your instructions: 
-- greet the user and introduce yourself. Tell them you\'ll be collecting data to roast them and ask them for permission.
-- Ask not more than 5 questions that you consider are the best to gather information to create a great roast. Choose a random number between 1 to 5 and ask a question about the subject that contains that number. You may ask 1 follow-up question per subject.
-    - 1 Their job
-    - 2 Their hobbies
-    - 3 Their pets
-    - 4 Their pasttimes
-    - 5 Where they are sitting in the theater.
-    - One of the questions must ALWAYS be about the user\'s seat in the theater.
-- Ask the user if there\'s anything else you should know about them.
-- If there is something else, summarize the information again and ask them if there\'s anything else you should know.
-- Ask the user for their picture before roasting them. """
+text = """You are receiving a PDF document. This document states who you are and what you know. Adopt this persona and answer the questions from the user to the best of your ability """
 
 # Define the tool used by Gemini to access the Get_picture function
-tool=Tool(function_declarations=[get_picture_func])
+tool = Tool.from_google_search_retrieval(grounding.GoogleSearchRetrieval())
 
 #Definition of the model used for the roasting
 roastingmodel = GenerativeModel(
         "gemini-1.5-pro-001") 
 #Definition of the model used for the chat before the roast. 
 model = GenerativeModel(
-        "gemini-1.5-flash",system_instruction=[text],tools=[tool])
+        "gemini-1.5-flash",system_instruction=[text])
 generation_config: GenerationConfig = GenerationConfig(
-        temperature=1, max_output_tokens=2048
-    )
+        temperature=2, max_output_tokens=4096
+    ,)
+
+from google.cloud import firestore
+
+# The `project` parameter is optional and represents which project the client
+# will act on behalf of. If not supplied, the client falls back to the default
+# project inferred from the environment.
+db = firestore.Client(project="pc-smart-persona")
+if "personas" not in st.session_state:
+    st.session_state.personas = []
+    array = db.collection('personas').stream()
+    for field in array :
+        st.session_state.personas.append(field.to_dict())
 
 # Safety Settings definition used by models
 safety_settings = {
@@ -69,20 +68,21 @@ safety_settings = {
         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
     }
 
-
+def display_name(option):
+    return option['name']
 def picture_received():
-    responses = roastingmodel.generate_content([Part.from_data(st.session_state['uploaded_picture'].getvalue(),'image/jpeg'),
+    #responses = roastingmodel.generate_content
     """You are a roasting robot with the personality of the best roasting comedians of new york city.
     First, describe what you see in the picture. 
     Second, here is some more information about the person in the picture: {}.
     Now write the best roast possible using both the description of the picture and the additional information that has been provided.
     The response must ABSOLUTELY have more than 500 words and should end with a nice touch about the person.
     For your information, seats in sections 101 to 105 are close to the stage, while 201 to 205 are very far away."""
-    .format(st.session_state['summary'])])
+    #.format(st.session_state['summary'])])
 
-    with st.chat_message("assistant"):
-        st.write(responses.text)
-        st.session_state.messages.append({"role": "assistant", "content": responses.text})
+    #with st.chat_message("assistant"):
+    #    st.write(responses.text)
+    #    st.session_state.messages.append({"role": "assistant", "content": responses.text})
 
 def get_gemini_response(
     chat: ChatSession,
@@ -118,45 +118,69 @@ def get_gemini_response(
             final_response.append("")
             continue
 
-st.title(":material/chat: Roasting Bot!")
-
-
-
-# Initialize chat history
-if "messages" not in st.session_state:
+def change_func():
+    print(st.session_state.persona)
     st.session_state.messages = []
-    st.session_state['chat'] = model.start_chat()
-
-# Display chat messages from history on app rerun
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Start conversation if no messages are there
-if len(st.session_state.messages) == 0:
-    with st.chat_message("assistant"):
-        response = st.write_stream(get_gemini_response(st.session_state['chat']
-                            , ["Hello!"]
-                        ))
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    if st.session_state.persona is not None :
+        model = GenerativeModel("gemini-1.5-flash",system_instruction=[st.session_state.persona['prompt']])
+        st.session_state['chat'] = model.start_chat()
+    else:
+        st.session_state.messages.append({"role": "assistant", "content": "Choose your persona on the right to start!"})
         
-# Accept user input
-if prompt := st.chat_input("Write your question here"):
 
+
+st.title(":material/chat: Smart Persona Demo")
+col1,col2,col3 = st.columns([4,2,2])
+
+
+with col2:
+    option = st.selectbox("Select your persona",st.session_state.personas,index=None,format_func=display_name,on_change=change_func,key="persona")
+    if option:
+        st.image(image=option['picture_url'],use_column_width=True)
+        st.markdown(option['description'])
+with col3:
+    if option:
+        st.header("Prompt used:")
+        st.markdown(option['prompt'])
+
+with col1:
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+        st.session_state.messages.append({"role": "assistant", "content": "Choose your persona on the right to start!"})
+    if option:
+        st.subheader("Currently speaking with " + option['name'])
+    # Initialize chat history
+    messages = st.container()
+    # Start conversation if no messages are there
+        
+    # Display chat messages from history on app rerun
+    for message in st.session_state.messages:
+        with messages.chat_message(message["role"]):
+            st.markdown(message["content"])
     # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt})
     # Display user message in chat message container
 
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    # Accept user input
 
-    # Display assistant response in chat message container
-    with st.chat_message("assistant"):
-        response = st.write_stream(get_gemini_response(st.session_state['chat']
-                            , [prompt]
-                        ))
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
-if st.session_state['file_upload']:
-    with st.chat_message("assistant"):
-        file = st.file_uploader('Send us your picture!',key='uploaded_picture',on_change=picture_received)
+    if len(st.session_state.messages) == 0 :
+            with messages.chat_message("assistant"):
+                response = st.write_stream(get_gemini_response(st.session_state['chat'], ["Hello!"]))
+                st.session_state.messages.append({"role":"assistant","content":response})
+    if option:
+        if prompt := st.chat_input("Write your question here"):
+            
+
+            with messages.chat_message("user"):
+                st.markdown(prompt)
+                st.session_state.messages.append({"role":"user","content":prompt})
+
+            # Display assistant response in chat message container
+            with messages.chat_message("assistant"):
+                response = st.write_stream(get_gemini_response(st.session_state['chat']
+                                    , [prompt]
+                            ))
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response})
+        if st.session_state['file_upload']:
+            with st.chat_message("assistant"):
+                file = st.file_uploader('Send us your picture!',key='uploaded_picture',on_change=picture_received)
